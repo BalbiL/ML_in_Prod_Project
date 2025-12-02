@@ -11,39 +11,39 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      ECR_REGISTRY: 073184925698.dkr.ecr.Europe.amazonaws.com
+      ECR_REGISTRY: 073184925698.dkr.ecr.eu-north-1.amazonaws.com
       ECR_REPOSITORY: group2-mlops
       IMAGE_TAG: latest
 
     steps:
-      # Checkout repo
+      # 1️⃣ Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      #  Configure AWS credentials
+      # 2️⃣ Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: Europe
+          aws-region: eu-north-1
 
-      #  Login to ECR
+      # 3️⃣ Login to ECR
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      #  Build Docker image
+      # 4️⃣ Build Docker image
       - name: Build Docker image
         run: |
           docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
 
-      #  Tag image for ECR
+      # 5️⃣ Tag image for ECR
       - name: Tag Docker image
         run: |
           docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      #  Push image to ECR
+      # 6️⃣ Push image to ECR
       - name: Push Docker image to ECR
         run: |
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
