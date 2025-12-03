@@ -11,16 +11,16 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      ECR_REGISTRY: 073184925698.dkr.ecr.eu-west-3.amazonaws.com
-      ECR_REPOSITORY: group2_mlops
+      ECR_REGISTRY: 073184925698.dkr.ecr.eu-north-1.amazonaws.com
+      ECR_REPOSITORY: group2-mlops
       IMAGE_TAG: latest
 
     steps:
-      # 1️⃣ Checkout repo
+      #  Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Configure AWS credentials (with session token)
+      #  Configure AWS credentials (with session token)
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -29,22 +29,78 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # 3️⃣ Login to ECR
+      #  Login to ECR
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      # 4️⃣ Build Docker image
+      # Build Docker image
       - name: Build Docker image
         run: |
           docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
 
-      # 5️⃣ Tag image for ECR
+      #  Tag image for ECR
       - name: Tag Docker image
         run: |
           docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      # 6️⃣ Push image to ECR
+      #  Push image to ECR
       - name: Push Docker image to ECR
         run: |
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+      #  Déploiement sur EC2 via SSH
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+       
+          host: ${{ secrets.EC2_HOST }}           
+          username: ec2-user                       
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}  
+
+         
+          envs: |
+            AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            AWS_SESSION_TOKEN=${{ secrets.AWS_SESSION_TOKEN }}
+            AWS_REGION=${{ secrets.AWS_REGION }} # Ex: eu-west-3
+            ECR_REGISTRY=${{ env.ECR_REGISTRY }}
+            ECR_REPOSITORY=${{ env.ECR_REPOSITORY }}
+            IMAGE_TAG=${{ env.IMAGE_TAG }}
+            CONTAINER_NAME=job-reco
+          
+          
+          script: |
+            
+
+            # 1. Login to ECR
+            echo "Logging in to Amazon ECR in region $AWS_REGION..."
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+            
+            if [ $? -ne 0 ]; then
+                echo "ERROR: ECR login failed."
+                exit 1
+            fi
+
+            FULL_IMAGE_NAME="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+            
+            # 2. Stop and delete old container
+            echo "Stopping and removing existing container: $CONTAINER_NAME..."
+            # '|| true' permet de ne pas faire échouer le script si le conteneur n'existe pas
+            docker stop $CONTAINER_NAME || true
+            docker rm $CONTAINER_NAME || true
+
+            # 3. Pull new image
+            echo "Pulling latest image: $FULL_IMAGE_NAME..."
+            docker pull $FULL_IMAGE_NAME
+            
+            if [ $? -ne 0 ]; then
+                echo "ERROR: Docker pull failed."
+                exit 1
+            fi
+
+            # 4. Rerun container with updated image
+            echo "Starting new container: $CONTAINER_NAME..."
+            # Utilisation du port 80 de l'EC2 vers le port 8501 de Streamlit
+            docker run -d -p 80:8501 --name $CONTAINER_NAME $FULL_IMAGE_NAME
+            
+            echo "Deployment to EC2 completed successfully!"

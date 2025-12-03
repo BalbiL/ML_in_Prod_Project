@@ -13,7 +13,7 @@ from model_functions import *
 
 # ========== Streamlit Configuration ==========
 st.set_page_config(page_title="Job Profile Recommendation", layout="wide")
-st.title("Job Profile Recommendation")
+st.title("Job Profile Recommendation version 1.0")
 
 try:
     model = load_model()
