@@ -96,6 +96,14 @@ jobs:
             docker stop $CONTAINER_NAME || true
             docker rm $CONTAINER_NAME || true
 
+            # Delete old images
+            docker image prune -a -f 
+            
+            docker system prune -f
+
+            echo "Disk space after cleanup:"
+            df -h
+
             # 3. Pull new image
             echo "Pulling latest image: $FULL_IMAGE_NAME..."
             docker pull $FULL_IMAGE_NAME
