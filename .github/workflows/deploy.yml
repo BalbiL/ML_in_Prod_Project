@@ -11,8 +11,8 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      ECR_REGISTRY: 073184925698.dkr.ecr.eu-north-1.amazonaws.com
-      ECR_REPOSITORY: group2-mlops
+      ECR_REGISTRY: 073184925698.dkr.ecr.eu-west-3.amazonaws.com/
+      ECR_REPOSITORY: group2_mlops
       IMAGE_TAG: latest
 
     steps:
