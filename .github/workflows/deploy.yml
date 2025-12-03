@@ -74,6 +74,9 @@ jobs:
 
             # 1. Login to ECR
             echo "Logging in to Amazon ECR in region $AWS_REGION..."
+            AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+            AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+            AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN \
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
             
             if [ $? -ne 0 ]; then
