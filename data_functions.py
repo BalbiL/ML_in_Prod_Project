@@ -16,7 +16,12 @@ def convert_to_ids(comp_string, comp_dict):
 def load_data():
     # Function to load and clean data, returning job profiles and competency dataframes ready for use
     # load
-    df = pd.read_csv("job_dataset.csv")
+    S3_BUCKET_PATH = "s3://goup2-data/job_dataset.csv"
+    try:
+        df = pd.read_csv(S3_BUCKET_PATH, storage_options={"anon": True})
+    except Exception as e:
+        st.error(f"Erreur S3 : {e}")
+        return pd.DataFrame(), pd.DataFrame()
 
     # Clean
     df = df.drop(columns=["ExperienceLevel","Responsibilities", "YearsOfExperience", "Keywords"])
