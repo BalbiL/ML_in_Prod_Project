@@ -49,34 +49,39 @@ jobs:
         run: |
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
       #  Déploiement sur EC2 via SSH
+    
       - name: Deploy to EC2
         uses: appleboy/ssh-action@master
+        # 1. On définit d'abord les variables dans l'environnement du runner
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
         with:
-       
-          host: ${{ secrets.EC2_HOST }}           
-          username: ec2-user                       
-          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}  
-
-         
-          envs: |
-            AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-            AWS_SESSION_TOKEN=${{ secrets.AWS_SESSION_TOKEN }}
-            AWS_REGION=${{ secrets.AWS_REGION }} # Ex: eu-west-3
-            ECR_REGISTRY=${{ env.ECR_REGISTRY }}
-            ECR_REPOSITORY=${{ env.ECR_REPOSITORY }}
-            IMAGE_TAG=${{ env.IMAGE_TAG }}
-            CONTAINER_NAME=job-reco
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           
+          # 2. On indique à l'action SSH quelles variables transférer (liste séparée par des virgules)
+          envs: AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_SESSION_TOKEN,AWS_REGION,ECR_REGISTRY,ECR_REPOSITORY,IMAGE_TAG,CONTAINER_NAME
           
           script: |
+            # Définition de variables locales au script
+            CONTAINER_NAME=job-reco
             
-
+            # Debug: Vérifier que la région est bien arrivée (ne pas afficher les secrets !)
+            echo "Current Region passed from GitHub: $AWS_REGION"
+            
             # 1. Login to ECR
-            echo "Logging in to Amazon ECR in region $AWS_REGION..."
-            AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
-            AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
-            AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN \
+            # Grâce au transfert via 'envs', les variables AWS_ACCESS_KEY_ID, etc. sont
+            # maintenant des variables d'environnement globales sur l'EC2 pour la durée de ce script.
+            # AWS CLI les détectera automatiquement.
+            
+            echo "Logging in to Amazon ECR..."
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
             
             if [ $? -ne 0 ]; then
@@ -88,22 +93,15 @@ jobs:
             
             # 2. Stop and delete old container
             echo "Stopping and removing existing container: $CONTAINER_NAME..."
-            # '|| true' permet de ne pas faire échouer le script si le conteneur n'existe pas
             docker stop $CONTAINER_NAME || true
             docker rm $CONTAINER_NAME || true
 
             # 3. Pull new image
             echo "Pulling latest image: $FULL_IMAGE_NAME..."
             docker pull $FULL_IMAGE_NAME
-            
-            if [ $? -ne 0 ]; then
-                echo "ERROR: Docker pull failed."
-                exit 1
-            fi
 
-            # 4. Rerun container with updated image
+            # 4. Rerun container
             echo "Starting new container: $CONTAINER_NAME..."
-            # Utilisation du port 80 de l'EC2 vers le port 8501 de Streamlit
             docker run -d -p 80:8501 --name $CONTAINER_NAME $FULL_IMAGE_NAME
             
             echo "Deployment to EC2 completed successfully!"
